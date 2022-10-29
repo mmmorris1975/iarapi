@@ -4,11 +4,14 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	// "net/http/cookiejar"
 	"net/http/httptest"
 	"os"
 	"reflect"
 	"testing"
 	"time"
+
+	// "golang.org/x/net/publicsuffix"
 )
 
 var (
@@ -114,9 +117,31 @@ func TestMain(m *testing.M) {
 	testClient = *ts.Client()
 	loginUrl = ts.URL + "/login"
 	apiBase = ts.URL
+	apiHost = ts.URL
 
 	os.Exit(m.Run())
 }
+
+// func TestClient_auth(t *testing.T) {
+// 	client := *http.DefaultClient
+// 	jar, _ := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
+// 	client.Jar = jar
+
+// 	t.Run("x", func (t *testing.T) {
+// 		c, err := NewClient("AMANA1ST", "cfbhddfaqi", "sX86$Gc4dW^N")
+// 		if err != nil {
+// 			t.Errorf("Client.auth() error = %v", err)
+// 		}
+
+// 		i, err := c.Incidents()
+// 		if err != nil {
+// 			t.Error(err)
+// 		}
+// 		for j, _ := range *i {
+// 			print(j)
+// 		}
+// 	})
+// }
 
 func TestClient_login(t *testing.T) {
 	type fields struct {
