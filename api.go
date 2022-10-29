@@ -4,19 +4,21 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
+	"net/url"
 	"strings"
 
+	"github.com/PuerkitoBio/goquery"
 	"golang.org/x/net/publicsuffix"
 )
 
 var (
-	apiBase  = `https://coordinator.iamresponding.com/api`
-	loginUrl = `https://iamresponding.com/v3/Pages/memberlogin.aspx/ValidateLoginInfo`
+	apiHost  = `https://dashboard.iamresponding.com`
+	apiBase  = apiHost + `/coordinator`
+	loginUrl = `https://auth.iamresponding.com/login/member`
 )
 
 func NewClient(agency, user, password string) (*Client, error) {
@@ -32,21 +34,73 @@ func NewClient(agency, user, password string) (*Client, error) {
 }
 
 func (c *Client) login(agency, user, password string) error {
-	login := &LoginRequest{
-		MemberLogin: true,
-		Agency:      agency,
-		User:        user,
-		Password:    password,
-	}
-
-	msg := new(LoginReply)
-	if err := c.apiPost(loginUrl, login, msg); err != nil {
+	token, err := c.fetchRequestToken()
+	if err != nil {
 		return err
 	}
 
-	if !strings.Contains(msg.Message, "iamresponding.com/") {
-		return errors.New(msg.Message)
+	form := url.Values{}
+	form.Add("Input.Agency", agency)
+	form.Add("Input.Username", user)
+	form.Add("Input.Password", password)
+	form.Add("__RequestVerificationToken", token)
+	form.Add("Input.RememberLogin", "false")
+	form.Add("Input.button", "login")
+	form.Add("Input.ReturnUrl", "")
+
+	return c.doLogin(form)
+}
+
+// Get the request verification token from the hidden form field on the HTML login page
+// Passed in login request along with Agency, Username, and Password
+func (c *Client) fetchRequestToken() (string, error) {
+	res, err := c.httpClient.Get(loginUrl)
+	if err != nil {
+		return "", err
 	}
+	defer res.Body.Close()
+
+	doc, err := goquery.NewDocumentFromReader(res.Body)
+	if err != nil {
+		return "", err
+	}
+
+	var token string
+	doc.FindMatcher(goquery.Single("form.iar-form__form")).ChildrenFiltered("input").Each(func(i int, s *goquery.Selection) {
+		if val, ok := s.Attr("name"); ok {
+			if val == "__RequestVerificationToken" {
+				token, _ = s.Attr("value")
+			}
+		}
+	})
+
+	return token, nil
+}
+
+// POST login form values to user auth endpoint, then perform oauth authorization
+func (c *Client) doLogin(data url.Values) error {
+	var req *http.Request
+	var res *http.Response
+	var err error
+
+	req, err = http.NewRequest(http.MethodPost, loginUrl, strings.NewReader(data.Encode()))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.AddCookie(&http.Cookie{Name: "CookieConsent", Value: "yes"})
+
+	res, err = c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	res.Body.Close()
+
+	res, err = c.httpClient.Get(apiHost + `/system/login?returnUrl=/`)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
 
 	return nil
 }
@@ -135,8 +189,10 @@ func (c *Client) apiPostWithContext(ctx context.Context, url string, input, outp
 
 func (c *Client) doApiRequest(req *http.Request, t interface{}) error {
 	req.Header.Add("Accept", "text/plain,application/json")
-
+	req.Header.Set("X-CSRF", "1")
+	req.AddCookie(&http.Cookie{Name: "CookieConsent", Value: "yes"})
 	res, err := c.httpClient.Do(req)
+
 	if err != nil {
 		return err
 	}

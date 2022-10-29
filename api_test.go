@@ -114,6 +114,7 @@ func TestMain(m *testing.M) {
 	testClient = *ts.Client()
 	loginUrl = ts.URL + "/login"
 	apiBase = ts.URL
+	apiHost = ts.URL
 
 	os.Exit(m.Run())
 }
@@ -533,7 +534,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	
+
 	if err = json.Unmarshal(body, req); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
