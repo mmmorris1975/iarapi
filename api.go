@@ -4,24 +4,21 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	// "errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
-	// "strings"
+	"strings"
 
 	"github.com/PuerkitoBio/goquery"
 	"golang.org/x/net/publicsuffix"
 )
 
 var (
-	apiHost = `https://dashboard.iamresponding.com`
-	apiBase = apiHost + `/coordinator`
-	// apiBase  = `https://coordinator.iamresponding.com/api`
+	apiHost  = `https://dashboard.iamresponding.com`
+	apiBase  = apiHost + `/coordinator`
 	loginUrl = `https://auth.iamresponding.com/login/member`
-	// loginUrl = `https://iamresponding.com/v3/Pages/memberlogin.aspx/ValidateLoginInfo`
 )
 
 func NewClient(agency, user, password string) (*Client, error) {
@@ -36,26 +33,6 @@ func NewClient(agency, user, password string) (*Client, error) {
 	return c, nil
 }
 
-// func (c *Client) login(agency, user, password string) error {
-// 	login := &LoginRequest{
-// 		MemberLogin: true,
-// 		Agency:      agency,
-// 		User:        user,
-// 		Password:    password,
-// 	}
-
-// 	msg := new(LoginReply)
-// 	if err := c.apiPost(loginUrl, login, msg); err != nil {
-// 		return err
-// 	}
-
-// 	if !strings.Contains(msg.Message, "iamresponding.com/") {
-// 		return errors.New(msg.Message)
-// 	}
-
-// 	return nil
-// }
-
 func (c *Client) login(agency, user, password string) error {
 	token, err := c.fetchRequestToken()
 	if err != nil {
@@ -67,9 +44,9 @@ func (c *Client) login(agency, user, password string) error {
 	form.Add("Input.Username", user)
 	form.Add("Input.Password", password)
 	form.Add("__RequestVerificationToken", token)
-	// form.Add("Input.RememberLogin", "false")
-	// form.Add("Input.button", "login")
-	// form.Add("Input.ReturnUrl", "")
+	form.Add("Input.RememberLogin", "false")
+	form.Add("Input.button", "login")
+	form.Add("Input.ReturnUrl", "")
 
 	return c.doLogin(form)
 }
@@ -102,11 +79,22 @@ func (c *Client) fetchRequestToken() (string, error) {
 
 // POST login form values to user auth endpoint, then perform oauth authorization
 func (c *Client) doLogin(data url.Values) error {
-	res, err := c.httpClient.PostForm(loginUrl, data)
+	var req *http.Request
+	var res *http.Response
+	var err error
+
+	req, err = http.NewRequest(http.MethodPost, loginUrl, strings.NewReader(data.Encode()))
 	if err != nil {
 		return err
 	}
-	defer res.Body.Close()
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.AddCookie(&http.Cookie{Name: "CookieConsent", Value: "yes"})
+
+	res, err = c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	res.Body.Close()
 
 	res, err = c.httpClient.Get(apiHost + `/system/login?returnUrl=/`)
 	if err != nil {
@@ -201,6 +189,8 @@ func (c *Client) apiPostWithContext(ctx context.Context, url string, input, outp
 
 func (c *Client) doApiRequest(req *http.Request, t interface{}) error {
 	req.Header.Add("Accept", "text/plain,application/json")
+	req.Header.Set("X-CSRF", "1")
+	req.AddCookie(&http.Cookie{Name: "CookieConsent", Value: "yes"})
 	res, err := c.httpClient.Do(req)
 
 	if err != nil {
