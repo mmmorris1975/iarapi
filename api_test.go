@@ -114,7 +114,7 @@ func TestMain(m *testing.M) {
 	testClient = *ts.Client()
 	loginUrl = ts.URL + "/login"
 	apiBase = ts.URL
-	apiHost = ts.URL
+	dashboardHost = ts.URL
 
 	os.Exit(m.Run())
 }

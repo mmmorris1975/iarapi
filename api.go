@@ -16,9 +16,9 @@ import (
 )
 
 var (
-	apiHost  = `https://dashboard.iamresponding.com`
-	apiBase  = apiHost + `/coordinator`
-	loginUrl = `https://auth.iamresponding.com/login/member`
+	dashboardHost = `https://dashboard.iamresponding.com`
+	apiBase       = `https://coordinator.iamresponding.com/api`
+	loginUrl      = `https://auth.iamresponding.com/login/member`
 )
 
 func NewClient(agency, user, password string) (*Client, error) {
@@ -96,7 +96,7 @@ func (c *Client) doLogin(data url.Values) error {
 	}
 	res.Body.Close()
 
-	res, err = c.httpClient.Get(apiHost + `/system/login?returnUrl=/`)
+	res, err = c.httpClient.Get(dashboardHost + `/system/login?returnUrl=/`)
 	if err != nil {
 		return err
 	}
